@@ -32,11 +32,11 @@ process merged_reads {
 input: 
     tuple val(sampleId), file(reads)
 output:
-    path "*_merged.fastq.gz", emit: merged_read
+    path "*_merged.fastq", emit: merged_read
     script:
 	def raw_sample_name = sampleId.split('_')[0]
     """
-	gzcat ${reads[0]} ${reads[1]} > ${raw_sample_name}_merged.fastq.gz
+	zcat ${reads[0]} ${reads[1]} > ${raw_sample_name}_merged.fastq
     """
     }
 
@@ -46,21 +46,23 @@ process pvga_assembly {
     publishDir 'output_assembly', mode: 'copy'   
 input: 
     path merged_assembly
+    path ref_genome
 output:
-     path "Assembled_Genomes/*", emit: assembled
+     path "Assembled_Genomes", emit: assembled
     script:
     """
     mkdir -p Assembled_Genomes
-    pvga -r ${merged_assembly} -b SarS_Cov2_ref.fasta -o ./Assembled_Genomes/
+    pvga -r ${merged_assembly} -b ${ref_genome} -o ./Assembled_Genomes/
     """
     }
 
-
+params.ref_seq = "SarS_Cov2_ref.fasta"
 workflow {
-raw_fasta = channel.fromFilePairs('./raw_data/*{1,2}.fastq')
+input_ch = channel.fromPath(params.ref_seq)
+raw_fasta = channel.fromFilePairs('./raw_data/*{1,2}.fastq.gz')
 	fastp_cleaning(raw_fasta)
 	merged_reads(fastp_cleaning.out.reads)
-    pvga_assembly(merged_reads.out.merged_read)
+    pvga_assembly(merged_reads.out.merged_read, input_ch.first())
     }
 
 
